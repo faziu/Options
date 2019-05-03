@@ -1,0 +1,148 @@
+#please install packages below to run the app:
+#install.packages('shiny')
+#install.packages('shinydashboard')
+#install.packages('EnvStats')
+
+
+library(shiny)
+library(shinydashboard)
+library(EnvStats)
+
+
+ui <- dashboardPage(
+  dashboardHeader(title = "Asian Options"),
+  
+  dashboardSidebar(disable = T),
+  
+  dashboardBody(fluidPage(
+    box(
+      sliderInput(inputId = "S0", label = "Initial Stock Price", 1, 250, 100),
+      
+      sliderInput(inputId = "K", label = "Strike Price", 1, 250, 90),
+      
+      sliderInput(inputId = "vol", label = "Volatility", 0.1, 1, 0.3),
+      
+      selectInput(
+        "ops",
+        "Select option",
+        choices = c("Asian GeomAverage Call", "Asian GeomAverage Put")
+        
+      ),
+      collapsible = TRUE,
+      collapsed = TRUE,
+      title = 'Parameters'
+      
+      
+    ),
+    
+    box(
+      sliderInput(inputId = "q", label = "Dividend payment", 0, 1, 0),
+      sliderInput(inputId = "t", label = "Time", 1, 50, 1),
+      sliderInput(inputId = "r", label = "Interest rate", 0.01, 1, 0.05),
+      sliderInput(
+        inputId = "sim",
+        label = "Simulations",
+        min = 1,
+        value = 1500,
+        max = 9999
+      ),
+      collapsible = TRUE,
+      collapsed = TRUE,
+      title = 'Parameters'
+    ),
+    box(
+      plotOutput("plot1"),
+      collapsed = TRUE,
+      collapsible = TRUE,
+      title = 'Asian Geometric Call'
+    ),
+    box(
+      plotOutput("plot2"),
+      collapsed = TRUE,
+      collapsible = TRUE,
+      title = 'Asian Geometric Put'
+    ),
+    
+    mainPanel(h3("Option price:"),
+              h3(textOutput("opt")))
+  )),
+  skin = "blue",
+  
+)
+
+server <- function(input, output) {
+  asiancall <- reactive({
+    options(scipen = 999)
+    S_sim <-
+      input$S0 * exp(((input$r - 0.5 * input$vol ^ 2) * input$t + input$vol *
+                        sqrt(input$t) * rnorm(input$sim)
+      ))
+    #q <- 0
+    #t <- 1
+    a = 0.5 * (input$r - input$q - 1 / 6 * input$vol ^ 2)
+    vol_G = input$vol / sqrt(3)
+    d1 = (log(S_sim * exp(a * input$t) / input$K) + 0.5 * vol_G ^ 2 * input$t) / (vol_G * sqrt(input$t))
+    d2 = d1 - vol_G * sqrt(input$t)
+    asian_geo_average_price_call_payoff = S_sim * exp((a - input$r) * input$t) * pnorm(d1) - input$K * exp(-input$r * input$t) * pnorm(d2)
+    asian_geo_average_price_call = geoMean(asian_geo_average_price_call_payoff)
+    return(asian_geo_average_price_call)
+  })
+  asianput <- reactive({
+    options(scipen = 999)
+    S_sim <-
+      input$S0 * exp(((input$r - 0.5 * input$vol ^ 2) * input$t + input$vol *
+                        sqrt(input$t) * rnorm(input$sim)
+      ))
+    #q <- 0
+    #t <- 1
+    a = 0.5 * (input$r - input$q - 1 / 6 * input$vol ^ 2)
+    vol_G = input$vol / sqrt(3)
+    d1 = (log(S_sim * exp(a * input$t) / input$K) + 0.5 * vol_G ^ 2 * input$t) / (vol_G * sqrt(input$t))
+    d2 = d1 - vol_G * sqrt(input$t)
+    asian_geo_average_price_put_payoff = -S_sim * exp((a - input$r) * input$t) * pnorm(-d1) + input$K * exp(-input$r * input$t) * pnorm(-d2)
+    asian_geo_average_price_put = geoMean(asian_geo_average_price_put_payoff)
+    return(asian_geo_average_price_put)
+  })
+  
+  output$plot1 <- renderPlot({
+    S_sim <-
+      input$S0 * exp(((input$r - 0.5 * input$vol ^ 2) * input$t + input$vol *
+                        sqrt(input$t) * rnorm(input$sim)
+      ))
+    a = 0.5 * (input$r - input$q - 1 / 6 * input$vol ^ 2)
+    vol_G = input$vol / sqrt(3)
+    d1 = (log(S_sim * exp(a * input$t) / input$K) + 0.5 * vol_G ^ 2 * input$t) / (vol_G * sqrt(input$t))
+    d2 = d1 - vol_G * sqrt(input$t)
+    asian_geo_average_price_call_payoff = S_sim * exp((a - input$r) * input$t) * pnorm(d1) - input$K * exp(-input$r * input$t) * pnorm(d2)
+    Call_Prices <- asian_geo_average_price_call_payoff
+    plot(Call_Prices, type = 'l', xlab = 'Number of Simulations')
+    
+  })
+  output$plot2 <- renderPlot({
+    S_sim <-
+      input$S0 * exp(((input$r - 0.5 * input$vol ^ 2) * input$t + input$vol *
+                        sqrt(input$t) * rnorm(input$sim)
+      ))
+    a = 0.5 * (input$r - input$q - 1 / 6 * input$vol ^ 2)
+    vol_G = input$vol / sqrt(3)
+    d1 = (log(S_sim * exp(a * input$t) / input$K) + 0.5 * vol_G ^ 2 * input$t) / (vol_G * sqrt(input$t))
+    d2 = d1 - vol_G * sqrt(input$t)
+    asian_geo_average_price_put_payoff = -S_sim * exp((a - input$r) * input$t) * pnorm(-d1) + input$K * exp(-input$r * input$t) * pnorm(-d2)
+    Put_Prices <- asian_geo_average_price_put_payoff
+    plot(Put_Prices, type = 'l', xlab = 'Number of Simulations')
+  })
+  
+  
+  output$opt <- renderText({
+    switch(
+      input$ops,
+      "Asian GeomAverage Call" = asiancall(),
+      "Asian GeomAverage Put" = asianput()
+      
+    )
+  })
+  
+  
+}
+
+shinyApp(ui, server)
