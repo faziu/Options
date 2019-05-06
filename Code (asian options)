@@ -1,4 +1,4 @@
-#please install packages below to run the app:
+#please install packages below to run the application:
 #install.packages('shiny')
 #install.packages('shinydashboard')
 #install.packages('EnvStats')
