@@ -1,0 +1,248 @@
+library(shiny)
+library(shinydashboard)
+
+# Define UI for application that draws a histogram
+ui <- dashboardPage(
+    dashboardHeader(title = "Structured Product"),
+    dashboardSidebar(disable = T),
+    
+    # Sidebar with a slider input for number of bins
+    dashboardBody(
+        fluidPage(
+            box(
+                numericInput(
+                    inputId = "S",
+                    label = "TSLA stock price",
+                    value = S0
+                ),
+                #min = 0.9999, value = 4.3055, max = 9.9999),
+                
+                numericInput(
+                    inputId = "S_bin",
+                    label = "GBP/PLN rates",
+                    value = round(S_bin, 3)
+                ),
+                #min = 0.9999, value = 4.3055, max = 9.9999),
+                
+                numericInput(
+                    inputId = "K",
+                    label = "Current Foreign Exchange Rate",
+                    value = round(K, 3)
+                ),
+                #min = 0.9999, value = 4.3055, max = 9.9999),
+                
+                sliderInput(
+                    inputId = "vol",
+                    label = "TSLA Volatility",
+                    min = 0.01,
+                    value = round(vol, 3),
+                    max = 0.9
+                ),
+                
+                
+                selectInput("ops",
+                            "Select option",
+                            choices = c("Payoff for the client", "YTM", "Price of the product", "Return"))
+            ),
+            box(
+                numericInput(
+                    inputId = "S_min",
+                    label = "TSLA stock min price",
+                    value = round(Smin, 3)
+                ),
+                sliderInput(
+                    inputId = "vol1",
+                    label = "GBP/PLN Volatility",
+                    min = 0.01,
+                    value = round(vol1,3),
+                    max = 0.1
+                ),
+                
+                sliderInput(
+                    inputId = "r",
+                    label = "US Treasury Yield GT30:GOV",
+                    min = -0.9,
+                    value = 0.0257,
+                    max = 0.9
+                ),
+                
+                sliderInput(
+                    inputId = "r_d",
+                    label = "WIBOR 1year",
+                    min = 0.01,
+                    value = r_d,
+                    max = 0.1
+                ),
+                
+                sliderInput(
+                    inputId = "r_f",
+                    label = "LIBOR 1year",
+                    min = -0.009,
+                    value = r_f,
+                    max = .1
+                )
+            ),
+            collapsible = FALSE,
+            collapsed = FALSE,
+            title = 'Parameters',
+            
+                            
+                            
+                      
+                        # Show a plot of the generated distribution
+                        mainPanel(h1("Result:"),
+                                  h1(textOutput("opt")))
+                    )))
+
+# Server
+server <- function(input, output) {
+    prod_payoff <- reactive({
+        princ <- 1200
+        K <- 4.7858
+        Q <- 65
+        TT <- 2 
+        q <- 0
+        
+        #ST <- input$S*exp((input$r - 0.5*input$vol)*TT+input$vol*sqrt(TT)*rnorm(10000))
+        Smin <- input$S_min 
+        S0 <- input$S
+        a1 <- (log(S0/Smin) + (input$r -q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        a2 <- a1 - input$vol*sqrt(TT)
+        a3 <- (log(S0/Smin) + (-input$r+q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        Y1 <- (2*(input$rf-q-0.5*input$vol^2)*log(S0/Smin))/(input$vol^2)
+        cfl <- S0*exp(-q*TT)*pnorm(a1)-S0*exp(-q*TT)*((input$vol^2)/(2*(input$r-q)))*pnorm(-a1) - Smin*exp(-input$r*TT)*(pnorm(a2) - input$vol^2/(2*(input$r-q))*exp(Y1)*pnorm(-a3))
+        payoff3 <- max(S0 - Smin,0)
+        d2 <- (log(input$S_bin/K) + (input$r_d - input$r_f-0.5*input$vol1^2)*TT)/(input$vol1*sqrt(TT))
+        con_call <- Q*exp(-(input$r_d - input$r_f)*TT)*pnorm(d2)
+        
+        payoff_bin <- if (input$S_bin > K) {
+            payoff_bin <- Q
+        }else{
+            payoff_bin <- 0
+        }
+        payoff_bin <- as.numeric(payoff_bin)
+        prod_payoff <- princ + payoff3 + payoff_bin
+        YTM <- prod_payoff^(1/TT) - 1
+        return(prod_payoff)
+        return(YTM)
+    })
+    YTM <- reactive({
+        princ <- 1200
+        K <- 4.7858
+        Q <- 65
+        TT <- 2 
+        q <- 0
+        
+        #ST <- input$S*exp((input$r - 0.5*input$vol)*TT+input$vol*sqrt(TT)*rnorm(10000))
+        Smin <- input$S_min 
+        S0 <- input$S
+        a1 <- (log(S0/Smin) + (input$r -q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        a2 <- a1 - input$vol*sqrt(TT)
+        a3 <- (log(S0/Smin) + (-input$r+q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        Y1 <- (2*(input$rf-q-0.5*input$vol^2)*log(S0/Smin))/(input$vol^2)
+        cfl <- S0*exp(-q*TT)*pnorm(a1)-S0*exp(-q*TT)*((input$vol^2)/(2*(input$r-q)))*pnorm(-a1) - Smin*exp(-input$r*TT)*(pnorm(a2) - input$vol^2/(2*(input$r-q))*exp(Y1)*pnorm(-a3))
+        payoff3 <- max(S0 - Smin,0)
+        d2 <- (log(input$S_bin/K) + (input$r_d - input$r_f-0.5*input$vol1^2)*TT)/(input$vol1*sqrt(TT))
+        con_call <- Q*exp(-(input$r_d - input$r_f)*TT)*pnorm(d2)
+        
+        payoff_bin <- if (input$S_bin > K) {
+            payoff_bin <- Q
+        }else{
+            payoff_bin <- 0
+        }
+        payoff_bin <- as.numeric(payoff_bin)
+        prod_payoff <- princ + payoff3 + payoff_bin
+        YTM <- (prod_payoff/princ)^(1/TT) - 1
+        YTM <- round(YTM, 3)
+        return(YTM)
+    })
+    
+    price <- reactive({
+        princ <- 1200
+        K <- 4.7858
+        Q <- 65
+        TT <- 2 
+        q <- 0
+        M <- 1000
+        YTM <- 1.579/100
+        TtoMat <- 2
+        
+        #ST <- input$S*exp((input$r - 0.5*input$vol)*TT+input$vol*sqrt(TT)*rnorm(10000))
+        Smin <- input$S_min 
+        S0 <- input$S
+        a1 <- (log(S0/Smin) + (input$r -q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        a2 <- a1 - input$vol*sqrt(TT)
+        a3 <- (log(S0/Smin) + (-input$r+q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        Y1 <- (2*(input$r-q-0.5*input$vol^2)*log(S0/Smin))/(input$vol^2)
+        cfl <- S0*exp(-q*TT)*pnorm(a1)-S0*exp(-q*TT)*((input$vol^2)/(2*(input$r-q)))*pnorm(-a1) - Smin*exp(-input$r*TT)*(pnorm(a2) - input$vol^2/(2*(input$r-q))*exp(Y1)*pnorm(-a3))
+        payoff3 <- max(S0 - Smin,0)
+        d2 <- (log(input$S_bin/K) + (input$r_d - input$r_f-0.5*input$vol1^2)*TT)/(input$vol1*sqrt(TT))
+        con_call <- Q*exp(-(input$r_d - input$r_f)*TT)*pnorm(d2)
+        
+        payoff_bin <- if (input$S_bin > K) {
+            payoff_bin <- Q
+        }else{
+            payoff_bin <- 0
+        }
+        payoff_bin <- as.numeric(payoff_bin)
+        prod_payoff <- princ + payoff3 + payoff_bin
+       
+        price <- M/(1+YTM)^TtoMat + cfl + con_call
+        price <- round(price, 3)
+        return(price)
+    })
+    return_1 <- reactive({
+        princ <- 1200
+        K <- 4.7858
+        Q <- 65
+        TT <- 2 
+        q <- 0
+        M <- 1000
+        YTM <- 1.579/100
+        TtoMat <- 2
+        
+        #ST <- input$S*exp((input$r - 0.5*input$vol)*TT+input$vol*sqrt(TT)*rnorm(10000))
+        Smin <- input$S_min 
+        S0 <- input$S
+        a1 <- (log(S0/Smin) + (input$r -q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        a2 <- a1 - input$vol*sqrt(TT)
+        a3 <- (log(S0/Smin) + (-input$r+q + 0.5*input$vol^2)*TT)/(input$vol*sqrt(TT))
+        Y1 <- (2*(input$r-q-0.5*input$vol^2)*log(S0/Smin))/(input$vol^2)
+        cfl <- S0*exp(-q*TT)*pnorm(a1)-S0*exp(-q*TT)*((input$vol^2)/(2*(input$r-q)))*pnorm(-a1) - Smin*exp(-input$r*TT)*(pnorm(a2) - input$vol^2/(2*(input$r-q))*exp(Y1)*pnorm(-a3))
+        payoff3 <- max(S0 - Smin,0)
+        d2 <- (log(input$S_bin/K) + (input$r_d - input$r_f-0.5*input$vol1^2)*TT)/(input$vol1*sqrt(TT))
+        con_call <- Q*exp(-(input$r_d - input$r_f)*TT)*pnorm(d2)
+        
+        payoff_bin <- if (input$S_bin > K) {
+            payoff_bin <- Q
+        }else{
+            payoff_bin <- 0
+        }
+        payoff_bin <- as.numeric(payoff_bin)
+        prod_payoff <- princ + payoff3 + payoff_bin
+        
+        price <- M/(1+YTM)^TtoMat + cfl + con_call
+        return <- prod_payoff/princ - 1
+        return <- round(return, 3)
+        return(return)
+    })
+    
+    
+    
+    output$opt <- renderText({
+        switch(
+            input$ops,
+            "Payoff for the client" = c("Total payoff for the buyer is ", prod_payoff(), "PLN"),
+            "YTM" = c('The total investment yields ', YTM()*100, '%'),
+            "Price of the product" = c("Total cost of the product ",price(),"PLN"),
+            "Return" = c("It gives ", (return_1() * 100), "% in 24 months")
+            
+        )
+    })
+    
+    
+    
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
